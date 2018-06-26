@@ -7,6 +7,7 @@
     type="tel"
     v-model="amount"
     v-if="!readOnly"
+    :disabled="disabled"
   >
   <span
     v-else
@@ -144,6 +145,15 @@ export default {
     },
 
     /**
+     * Disable input field
+     */
+    disabled: {
+      type: Boolean,
+      default: false,
+      required: false
+    },
+
+    /**
      * Class for the span tag when readOnly props is true.
      */
     readOnlyClass: {
@@ -207,7 +217,9 @@ export default {
      * @param {Number} newValue
      */
     value (newValue) {
-      if (newValue !== this.amount) this.amount = this.process(newValue)
+      if (newValue !== this.amount) {
+        this.amount = this.format(newValue)
+      }
     },
 
     /**
@@ -227,28 +239,28 @@ export default {
      * Immediately reflect separator changes
      */
     separator () {
-      this.amount = this.process(this.value)
+      this.amount = this.format(this.value)
     },
 
     /**
      * Immediately reflect currency changes
      */
     currency () {
-      this.amount = this.process(this.value)
+      this.amount = this.format(this.value)
     },
 
     /**
      * Immediately reflect precision changes
      */
     precision () {
-      this.amount = this.process(this.value)
+      this.amount = this.format(this.value)
     }
   },
 
   mounted () {
     // Set default value props when placeholder undefined.
     this.$nextTick(() => {
-      this.amount = this.process(this.value)
+      this.amount = this.format(this.value)
 
       // Support vue-float-label
       if (!this.readOnly) {
@@ -272,13 +284,7 @@ export default {
      */
     onBlurHandler (evt) {
       this.$emit('blur', evt)
-      if (evt.target.value.length && !this.unformat(this.amount)) {
-        this.amount = 0
-        this.$emit('input', 0)
-      } else {
-        this.amount = this.process(this.amount)
-        this.update(this.amount)
-      }
+      this.update()
     },
 
     /**
@@ -288,28 +294,20 @@ export default {
     },
 
     /**
-     * Validate value before update the component.
-     * @param {Number} value
-     */
-    process (value) {
-      let processedValue = this.unformat(value)
-      if (value >= this.max) processedValue = this.max
-      if (value <= this.min) processedValue = this.min
-      if (!this.minus && value < 0) this.min >= 0 ? processedValue = this.min : processedValue = 0
-
-      return this.format(processedValue)
-    },
-
-    /**
      * Update parent component model value.
-     * @param {Number} value
      */
-    update (value) {
-      let emitValue = this.unformat(value);
+    update () {
+      let emitValue = this.unformat(this.amount);
       if (!emitValue) {
-        this.$emit('input', '');
-        this.amount = '';
+        if (this.amount.length) {
+          this.amount = this.format(0)
+          this.$emit('input', 0)
+        } else {
+          this.amount = '';
+          this.$emit('input', '');
+        }
       } else {
+        this.amount = this.format(this.amount)
         const fixedValue = accounting.toFixed(emitValue, this.precision)
         const output = this.outputType.toLowerCase() === 'string' ? fixedValue : emitValue
         this.$emit('input', output)
@@ -322,7 +320,12 @@ export default {
      * @return {String}
      */
     format (value) {
-      return accounting.formatMoney(value, {
+      let processedValue = this.unformat(value)
+      if (value >= this.max) processedValue = this.max
+      if (value <= this.min) processedValue = this.min
+      if (!this.minus && value < 0) this.min >= 0 ? processedValue = this.min : processedValue = 0
+
+      return accounting.formatMoney(processedValue, {
         symbol: this.currency,
         format: this.symbolPosition,
         precision: Number(this.precision),
