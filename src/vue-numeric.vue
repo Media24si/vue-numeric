@@ -3,7 +3,6 @@
     :placeholder="placeholder"
     @blur="onBlurHandler"
     @input="onInputHandler"
-    @focus="onFocusHandler"
     ref="numeric"
     type="tel"
     v-model="amount"
@@ -130,7 +129,7 @@ export default {
      * v-model value.
      */
     value: {
-      type: [Number, String],
+      type: null,
       default: 0,
       required: true
     },
@@ -164,27 +163,13 @@ export default {
     }
   },
 
-  data: () => ({
-    amount: ''
-  }),
+  data: () => {
+    return {
+      amount: this.value
+    }
+  },
 
   computed: {
-    /**
-     * Number type of formatted value.
-     * @return {Number}
-     */
-    amountNumber () {
-      return this.unformat(this.amount)
-    },
-
-    /**
-     * Number type of value props.
-     * @return {Number}
-     */
-    valueNumber () {
-      return this.unformat(this.value)
-    },
-
     /**
      * Define decimal separator based on separator props.
      * @return {String} '.' or ','
@@ -218,13 +203,11 @@ export default {
 
   watch: {
     /**
-     * Watch for value change from other input with same v-model.
+     * Watch for value change
      * @param {Number} newValue
      */
-    valueNumber (newValue) {
-      if (this.$refs.numeric !== document.activeElement) {
-        this.amount = this.format(newValue)
-      }
+    value (newValue) {
+      if (newValue !== this.amount) this.amount = this.process(newValue)
     },
 
     /**
@@ -244,39 +227,39 @@ export default {
      * Immediately reflect separator changes
      */
     separator () {
-      this.process(this.valueNumber)
-      this.amount = this.format(this.valueNumber)
+      this.amount = this.process(this.value)
     },
 
     /**
      * Immediately reflect currency changes
      */
     currency () {
-      this.process(this.valueNumber)
-      this.amount = this.format(this.valueNumber)
+      this.amount = this.process(this.value)
     },
 
     /**
      * Immediately reflect precision changes
      */
     precision () {
-      this.process(this.valueNumber)
-      this.amount = this.format(this.valueNumber)
+      this.amount = this.process(this.value)
     }
   },
 
   mounted () {
     // Set default value props when placeholder undefined.
-    if (!this.placeholder) {
-      this.process(this.valueNumber)
-      this.amount = this.format(this.valueNumber)
+    this.$nextTick(() => {
+      this.amount = this.process(this.value)
 
-      // In case of delayed props value.
-      setTimeout(() => {
-        this.process(this.valueNumber)
-        this.amount = this.format(this.valueNumber)
-      }, 500)
-    }
+      // Support vue-float-label
+      if (!this.readOnly) {
+        this.$nextTick(() => {
+          let numericEl = this.$refs.numeric
+          const event = document.createEvent('HTMLEvents')
+          event.initEvent('input', true, false)
+          numericEl.dispatchEvent(event)
+        });
+      }
+    });
 
     // Set read-only span element's class
     if (this.readOnly) this.$refs.readOnly.className = this.readOnlyClass
@@ -285,37 +268,23 @@ export default {
   methods: {
     /**
      * Handle blur event.
-     * @param {Object} e
+     * @param {Object} evt
      */
-    onBlurHandler (e) {
-      this.$emit('blur', e)
-      this.amount = this.format(this.valueNumber)
-    },
-
-    /**
-     * Handle focus event.
-     * @param {Object} e
-     */
-    onFocusHandler (e) {
-      this.$emit('focus', e)
-      if (this.valueNumber === 0) {
-        this.amount = null
+    onBlurHandler (evt) {
+      this.$emit('blur', evt)
+      if (evt.target.value.length && !this.unformat(this.amount)) {
+        this.amount = 0
+        this.$emit('input', 0)
       } else {
-        this.amount = accounting.formatMoney(this.valueNumber, {
-          symbol: '',
-          format: '%v',
-          thousand: '',
-          decimal: this.decimalSeparatorSymbol,
-          precision: Number(this.precision)
-        })
+        this.amount = this.process(this.amount)
+        this.update(this.amount)
       }
     },
 
     /**
      * Handle input event.
      */
-    onInputHandler () {
-      this.process(this.amountNumber)
+    onInputHandler (evt) {
     },
 
     /**
@@ -323,10 +292,12 @@ export default {
      * @param {Number} value
      */
     process (value) {
-      if (value >= this.max) this.update(this.max)
-      if (value <= this.min) this.update(this.min)
-      if (value > this.min && value < this.max) this.update(value)
-      if (!this.minus && value < 0) this.min >= 0 ? this.update(this.min) : this.update(0)
+      let processedValue = this.unformat(value)
+      if (value >= this.max) processedValue = this.max
+      if (value <= this.min) processedValue = this.min
+      if (!this.minus && value < 0) this.min >= 0 ? processedValue = this.min : processedValue = 0
+
+      return this.format(processedValue)
     },
 
     /**
@@ -334,9 +305,15 @@ export default {
      * @param {Number} value
      */
     update (value) {
-      const fixedValue = accounting.toFixed(value, this.precision)
-      const output = this.outputType.toLowerCase() === 'string' ? fixedValue : Number(fixedValue)
-      this.$emit('input', output)
+      let emitValue = this.unformat(value);
+      if (!emitValue) {
+        this.$emit('input', '');
+        this.amount = '';
+      } else {
+        const fixedValue = accounting.toFixed(emitValue, this.precision)
+        const output = this.outputType.toLowerCase() === 'string' ? fixedValue : emitValue
+        this.$emit('input', output)
+      }
     },
 
     /**
