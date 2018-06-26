@@ -301,6 +301,10 @@ export default {
      * @return {String}
      */
     format (value) {
+      if (value === '' || value === null) {
+        return value
+      }
+      
       let processedValue = this.unformat(value)
       if (value >= this.max) processedValue = this.max
       if (value <= this.min) processedValue = this.min
