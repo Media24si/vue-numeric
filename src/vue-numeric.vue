@@ -1,13 +1,12 @@
 <template>
   <input
+    v-if="!readOnly"
+    :disabled="disabled"
     :placeholder="placeholder"
     @blur="onBlurHandler"
-    @input="onInputHandler"
     ref="numeric"
     type="tel"
     v-model="amount"
-    v-if="!readOnly"
-    :disabled="disabled"
   >
   <span
     v-else
@@ -259,19 +258,7 @@ export default {
 
   mounted () {
     // Set default value props when placeholder undefined.
-    this.$nextTick(() => {
-      this.amount = this.format(this.value)
-
-      // Support vue-float-label
-      if (!this.readOnly) {
-        this.$nextTick(() => {
-          let numericEl = this.$refs.numeric
-          const event = document.createEvent('HTMLEvents')
-          event.initEvent('input', true, false)
-          numericEl.dispatchEvent(event)
-        });
-      }
-    });
+    this.amount = this.format(this.value)
 
     // Set read-only span element's class
     if (this.readOnly) this.$refs.readOnly.className = this.readOnlyClass
@@ -285,12 +272,6 @@ export default {
     onBlurHandler (evt) {
       this.$emit('blur', evt)
       this.update()
-    },
-
-    /**
-     * Handle input event.
-     */
-    onInputHandler (evt) {
     },
 
     /**
