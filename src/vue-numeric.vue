@@ -106,6 +106,48 @@ export default {
     },
 
     /**
+     * Display 7+ figure numbers as e.g. $ 1.25M
+     * Accepts any string.
+     * Applicable to read-only use cases only.
+     */
+    millionsSymbol: {
+      default: 'M',
+      required: false,
+      type: String
+    },
+
+    /**
+     * Display 10+ figure numbers as e.g. $ 1.25B
+     * Accepts any string.
+     * Applicable to read-only use cases only.
+     */
+    billionsSymbol: {
+      default: 'B',
+      required: false,
+      type: String
+    },
+    
+    /**
+     * Number of decimals when using millions symbol
+     * Applicable to read-only use cases only.
+     */
+    millionsPrecision: {
+      type: Number,
+      default: 2,
+      required: false
+    },
+
+    /**
+     * Number of decimals when using billions symbol
+     * Applicable to read-only use cases only.
+     */
+    billionsPrecision: {
+      type: Number,
+      default: 2,
+      required: false
+    },
+
+    /**
      * Forced decimal separator.
      * Accepts any string.
      */
@@ -206,7 +248,7 @@ export default {
      */
     symbolPosition () {
       if (!this.currency) return '%v'
-      return this.currencySymbolPosition === 'suffix' ? '%v %s' : '%s %v'
+      return this.currencySymbolPosition === 'suffix' ? '%v %s' : '%s%v'
     }
   },
 
@@ -297,7 +339,7 @@ export default {
 
     /**
      * Format value using symbol and separator.
-     * @param {Number} value
+     * @param {Number,String} value
      * @return {String}
      */
     format (value) {
@@ -310,23 +352,39 @@ export default {
       if (value <= this.min) processedValue = this.min
       if (!this.minus && value < 0) this.min >= 0 ? processedValue = this.min : processedValue = 0
 
-      return accounting.formatMoney(processedValue, {
-        symbol: this.currency,
-        format: this.symbolPosition,
-        precision: Number(this.precision),
-        decimal: this.decimalSeparatorSymbol,
-        thousand: this.thousandSeparatorSymbol
-      })
+      let formattedString
+
+      if (this.readOnly && this.billionsSymbol && processedValue >= 1000000000) {
+        formattedString = this.shortenWithSymbol((processedValue / 1000000000).toFixed(this.billionsPrecision), this.billionsSymbol);
+      } else if (this.readOnly && this.millionsSymbol && processedValue >= 1000000) {
+        formattedString = this.shortenWithSymbol((processedValue / 1000000).toFixed(this.millionsPrecision), this.millionsSymbol);
+      } else {
+        formattedString = accounting.formatMoney(processedValue, {
+          symbol: this.currency,
+          format: this.symbolPosition,
+          precision: Number(this.precision),
+          decimal: this.decimalSeparatorSymbol,
+          thousand: this.thousandSeparatorSymbol
+        });
+      }
+
+      return formattedString
     },
 
     /**
      * Remove symbol and separator.
-     * @param {Number} value
+     * @param {Number,String} value
      * @return {Number}
      */
     unformat (value) {
       const toUnformat = typeof value === 'string' && value === '' ? this.emptyValue : value
       return accounting.unformat(toUnformat, this.decimalSeparatorSymbol)
+    },
+
+    shortenWithSymbol (valString, symbol) {
+      // cut off trailing zeros
+      let truncatedValString = valString.split('').reverse().join('').replace(/^0+/, '').replace(/^\./, '').split('').reverse().join('');
+      return this.symbolPosition.replace('%s', this.currency).replace('%v', truncatedValString + symbol)
     }
   }
 }
