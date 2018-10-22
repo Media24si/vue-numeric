@@ -113,7 +113,7 @@ export default {
     millionsSymbol: {
       default: 'M',
       required: false,
-      type: String
+      type: [String, Boolean]
     },
 
     /**
@@ -124,7 +124,7 @@ export default {
     billionsSymbol: {
       default: 'B',
       required: false,
-      type: String
+      type: [String, Boolean]
     },
     
     /**
